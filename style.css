@@ -1,0 +1,106 @@
+/* Amber的活动手札 - 网页版 */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  --primary: #ff6b6b;
+  --primary-light: #ff8e8e;
+  --bg: #f8f9fc;
+  --card: #ffffff;
+  --text: #333333;
+  --text-secondary: #888888;
+  --border: #eeeeee;
+  --green: #4caf50;
+  --orange: #ff9800;
+  --gray: #999;
+}
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); }
+#app { max-width: 480px; margin: 0 auto; min-height: 100vh; padding-bottom: 70px; }
+
+/* Tab Bar */
+.tab-bar {
+  position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
+  width: 100%; max-width: 480px; background: white;
+  display: flex; border-top: 1px solid var(--border); z-index: 100;
+}
+.tab-item {
+  flex: 1; text-align: center; padding: 8px 0; cursor: pointer;
+  font-size: 12px; color: var(--text-secondary); transition: 0.2s;
+}
+.tab-item.active { color: var(--primary); }
+.tab-item .icon { font-size: 22px; display: block; margin-bottom: 2px; }
+
+/* Header */
+.header { padding: 20px 16px 10px; text-align: center; }
+.header h1 { font-size: 22px; font-weight: 700; }
+.header p { font-size: 14px; color: var(--text-secondary); margin-top: 4px; }
+.page-title { padding: 16px 16px 0; font-size: 18px; font-weight: 600; }
+
+/* Card */
+.card {
+  background: var(--card); border-radius: 12px; margin: 10px 16px; padding: 16px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06); cursor: pointer; transition: 0.2s;
+}
+.card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+.card-title { font-size: 16px; font-weight: 600; margin-bottom: 6px; }
+.card-meta { font-size: 13px; color: var(--text-secondary); margin-bottom: 4px; }
+.card-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; }
+.tag {
+  display: inline-block; padding: 2px 10px; border-radius: 20px; font-size: 12px;
+  background: #e8f5e9; color: #2e7d32;
+}
+.tag.end { background: #f5f5f5; color: #999; }
+
+/* Buttons */
+.btn {
+  display: block; width: calc(100% - 32px); margin: 12px 16px; padding: 14px;
+  border: none; border-radius: 10px; font-size: 16px; font-weight: 500;
+  text-align: center; cursor: pointer; transition: 0.2s;
+}
+.btn-primary { background: var(--primary); color: white; }
+.btn-primary:hover { background: var(--primary-light); }
+.btn-gray { background: #f0f0f0; color: #999; cursor: default; }
+.btn-outline { background: white; color: var(--primary); border: 1.5px solid var(--primary); }
+
+/* Forms */
+.form-group { margin: 12px 16px; }
+.form-label { display: block; font-size: 14px; font-weight: 500; margin-bottom: 6px; }
+.form-input {
+  width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: 8px;
+  font-size: 15px; outline: none; transition: 0.2s;
+}
+.form-input:focus { border-color: var(--primary); }
+textarea.form-input { resize: vertical; min-height: 80px; }
+
+/* Modal */
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.4);
+  display: flex; align-items: center; justify-content: center; z-index: 200;
+}
+.modal-content { background: white; border-radius: 16px; padding: 24px; width: 85%; max-width: 360px; text-align: center; }
+.modal-title { font-size: 18px; font-weight: 600; margin-bottom: 8px; }
+.modal-desc { font-size: 14px; color: var(--text-secondary); margin-bottom: 20px; }
+.modal-btns { display: flex; gap: 10px; }
+.modal-btns .btn { margin: 0; flex: 1; }
+.modal-btns .cancel { background: #f0f0f0; color: #666; }
+
+/* Empty state */
+.empty { text-align: center; padding: 60px 16px; color: var(--text-secondary); }
+.empty .icon { font-size: 48px; margin-bottom: 12px; }
+
+/* Login */
+.login-box { padding: 40px 16px; text-align: center; }
+.login-box .logo { font-size: 48px; margin-bottom: 8px; }
+.login-box h1 { font-size: 24px; margin-bottom: 4px; }
+.login-box p { color: var(--text-secondary); margin-bottom: 30px; }
+
+/* Points */
+.points-header { text-align: center; padding: 30px 16px; }
+.points-num { font-size: 48px; font-weight: 700; color: var(--primary); }
+.points-label { font-size: 14px; color: var(--text-secondary); }
+.points-item { display: flex; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--border); }
+.points-item .pts { font-weight: 600; }
+.points-item .pts.pos { color: var(--green); }
+.points-item .pts.neg { color: var(--primary); }
+
+/* Login page specific */
+.login-btn-group { margin-top: 24px; }
+.login-error { color: var(--primary); font-size: 14px; margin-top: 8px; }
