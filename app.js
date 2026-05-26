@@ -1,72 +1,170 @@
-// Amber的活动手札 - 网页版 v2 完整版
+// Amber的活动手札 - 网页版 v3 云端版（Supabase）
+// 所有数据存储在 Supabase 云数据库，支持多人实时共享
+
+const SUPABASE_URL = 'https://shlpqpscmvdxkxquqibb.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNobHBxcHNjbXZkeGt4cXVxaWJiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk3NDg3NTIsImV4cCI6MjA5NTMyNDc1Mn0.Ba1SgbYw6ZRDFMKib7s8MLCey2IMJc17TQ0zzO8RA60';
+
 const DB = { KEY: 'nadb_activities', USER_KEY: 'nadb_user', USERS_KEY: 'nadb_users', APPS_KEY: 'nadb_apps', ADMIN_KEY: 'nadb_admin' };
 
 // ========== State ==========
 let state = { user: null, view: 'home', data: null, filter: 'all', apps: [], users: [], activities: [] };
 
-function save(k, v) { localStorage.setItem(k, JSON.stringify(v)); }
-function load(k, def) { try { return JSON.parse(localStorage.getItem(k)) || def; } catch { return def; } }
+// ========== Supabase REST helpers ==========
+async function sbGet(table, params) {
+  const qs = params ? '?' + new URLSearchParams(params).toString() : '';
+  const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}${qs}`, {
+    headers: { apikey: SUPABASE_KEY, 'Content-Type': 'application/json' }
+  });
+  if (!r.ok) { const t = await r.text(); console.error('sbGet error', r.status, t); return []; }
+  return r.json();
+}
+
+async function sbPost(table, body) {
+  const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}`, {
+    method: 'POST',
+    headers: { apikey: SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
+    body: JSON.stringify(body)
+  });
+  if (!r.ok) { const t = await r.text(); console.error('sbPost error', r.status, t); return null; }
+  const arr = await r.json();
+  return Array.isArray(arr) ? arr[0] : arr;
+}
+
+async function sbPut(table, params, body) {
+  const qs = '?' + new URLSearchParams(params).toString();
+  const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}${qs}`, {
+    method: 'PATCH',
+    headers: { apikey: SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
+    body: JSON.stringify(body)
+  });
+  if (!r.ok) { const t = await r.text(); console.error('sbPut error', r.status, t); return null; }
+  const arr = await r.json();
+  return Array.isArray(arr) ? arr[0] : arr;
+}
+
+async function sbDelete(table, params) {
+  const qs = '?' + new URLSearchParams(params).toString();
+  const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}${qs}`, {
+    method: 'DELETE',
+    headers: { apikey: SUPABASE_KEY, 'Content-Type': 'application/json' }
+  });
+  return r.ok;
+}
 
 // ========== Init ==========
-function init() {
+async function init() {
   // Admin account
-  if (!localStorage.getItem(DB.ADMIN_KEY)) {
-    save(DB.ADMIN_KEY, { name: '管理员', phone: '13800000000', password: 'admin123', inviteCode: 'naidezhuan2026' });
+  let adminArr = await sbGet('admin', { name: 'eq.管理员' });
+  if (!adminArr || adminArr.length === 0) {
+    await sbPost('admin', { name: '管理员', phone: '13800000000', password: 'admin123', inviteCode: 'naidezhuan2026' });
   }
   // Demo activities
-  if (!localStorage.getItem(DB.KEY)) {
-    save(DB.KEY, [
+  let acts = await sbGet('activities', { status: 'eq.active' });
+  if (!acts || acts.length === 0) {
+    const demoActs = [
       { id: 1001, title: '周末朝阳公园散步', location: '朝阳公园', content: '周末一起逛公园散步，放松心情，适合带相机。', points: 50, people: 5, enrolled: 2, date: '2026-05-24', time: '09:00-11:00', status: 'active', publisher: 'Amber', creator: true },
       { id: 1002, title: '798咖啡品鉴小聚', location: '798艺术区', content: '一起逛798，找家咖啡馆坐下来聊最近的生活。', points: 80, people: 6, enrolled: 3, date: '2026-05-28', time: '14:00-17:00', status: 'active', publisher: 'Amber', creator: true },
       { id: 1003, title: '周末徒步+山顶品酒', location: '香山', content: '爬爬山，到山顶一起开一瓶马德拉，看风景聊天。', points: 100, people: 8, enrolled: 1, date: '2026-05-30', time: '08:00-12:00', status: 'active', publisher: 'Amber', creator: true }
-    ]);
+    ];
+    for (const a of demoActs) await sbPost('activities', a);
   }
-  if (!localStorage.getItem(DB.USERS_KEY)) save(DB.USERS_KEY, []);
-  if (!localStorage.getItem(DB.APPS_KEY)) save(DB.APPS_KEY, []);
+  // Seed users/apps tables if empty
+  const emptyUsers = await sbGet('users', { limit: 1 });
+  const emptyApps = await sbGet('apps', { limit: 1 });
+  // localStorage 兼容：把旧数据迁移过来
+  const localActs = JSON.parse(localStorage.getItem(DB.KEY) || '[]');
+  const localUsers = JSON.parse(localStorage.getItem(DB.USERS_KEY) || '[]');
+  const localApps = JSON.parse(localStorage.getItem(DB.APPS_KEY) || '[]');
+  // 如果云端没数据但本地有，先写入本地demo数据（避免误删）
+  if ((!acts || acts.length === 0) && localActs.length > 0) {
+    for (const a of localActs) await sbPost('activities', a);
+  }
+  if ((!emptyUsers || emptyUsers.length === 0) && localUsers.length > 0) {
+    for (const u of localUsers) await sbPost('users', u);
+  }
+  if ((!emptyApps || emptyApps.length === 0) && localApps.length > 0) {
+    for (const a of localApps) await sbPost('apps', a);
+  }
 }
 
 // ========== Router ==========
 function navigate(view, data) {
   state.view = view; state.data = data;
-  // Persist enrolled for current user
-  const u = getCurrentUser();
-  if (u) { state.user = u; }
   render();
 }
 
 // ========== Auth ==========
 function getCurrentUser() {
   if (state.user) return state.user;
-  return load(DB.USER_KEY, null);
+  try { return JSON.parse(localStorage.getItem(DB.USER_KEY)) || null; } catch { return null; }
 }
 
-function login(name, isAdmin, pwd) {
+function saveUserToLocal(u) { localStorage.setItem(DB.USER_KEY, JSON.stringify(u)); }
+
+async function login(name, isAdmin, pwd) {
   if (isAdmin) {
-    const admin = load(DB.ADMIN_KEY);
+    const admins = await sbGet('admin', { name: 'eq.管理员' });
+    const admin = admins[0];
+    if (!admin) return '管理员未初始化';
     if (pwd !== admin.password) return '密码错误';
     const u = { name: admin.name, role: 'admin', phone: admin.phone };
-    state.user = u; save(DB.USER_KEY, u); render(); return null;
+    state.user = u; saveUserToLocal(u); render(); return null;
   }
   if (!name.trim()) return '请输入昵称';
-  let users = load(DB.USERS_KEY, []);
-  let u = users.find(x => x.name === name);
-  if (!u) { u = { id: Date.now(), name, points: 0, joined: new Date().toISOString(), completed: 0 }; users.push(u); save(DB.USERS_KEY, users); }
+  let allUsers = await sbGet('users', {}); let users = allUsers.filter(x => x.name === name);
+  let u = users[0];
+  if (!u) {
+    u = { name, points: 0, joined: new Date().toISOString(), completed: 0 };
+    const created = await sbPost('users', u);
+    if (created && created.id) u.id = created.id;
+  }
   u.role = 'user';
-  state.user = u; save(DB.USER_KEY, u); render(); return null;
+  state.user = u; saveUserToLocal(u); render(); return null;
 }
 
 function logout() { localStorage.removeItem(DB.USER_KEY); state.user = null; navigate('home'); }
 
 // ========== Data helpers ==========
-function getActivities() { return load(DB.KEY, []); }
-function saveActivities(a) { save(DB.KEY, a); }
-function getUsers() { return load(DB.USERS_KEY, []); }
-function getApps() { return load(DB.APPS_KEY, []); }
-function getMyEnrolled() { const u = getCurrentUser(); return u ? load('enrolled_' + u.name, []) : []; }
-function saveMyEnrolled(arr) { const u = getCurrentUser(); if (u) save('enrolled_' + u.name, arr); }
+async function getActivities() {
+  const r = await sbGet('activities', {});
+  return r || [];
+}
+
+async function saveActivity(a) {
+  if (a.id) {
+    await sbPut('activities', { id: 'eq.' + a.id }, a);
+  } else {
+    await sbPost('activities', a);
+  }
+}
+
+async function getUsers() {
+  const r = await sbGet('users', {});
+  return r || [];
+}
+
+async function getApps() {
+  const r = await sbGet('apps', {});
+  return r || [];
+}
+
+function getMyEnrolled() {
+  const u = getCurrentUser();
+  return u ? JSON.parse(localStorage.getItem('enrolled_' + u.name) || '[]') : [];
+}
+
+function saveMyEnrolled(arr) {
+  const u = getCurrentUser();
+  if (u) localStorage.setItem('enrolled_' + u.name, JSON.stringify(arr));
+}
 
 // ========== Render ==========
-function render() {
+async function render() {
+  // 先加载云端数据
+  state.activities = await getActivities();
+  state.users = await getUsers();
+  state.apps = await getApps();
+
   const app = document.getElementById('app');
   const user = getCurrentUser();
   let html = '';
@@ -110,7 +208,7 @@ function loginPage() {
 
 // ========== Home ==========
 function homePage() {
-  const acts = getActivities().filter(a => a.status === 'active');
+  const acts = state.activities.filter(a => String(a.status) === 'active');
   const enrolled = getMyEnrolled();
   let html = `<div class="header"><h1>📒 那得赚一笔</h1><p>看看朋友们最近在玩什么</p></div>`;
   if (!acts.length) {
@@ -135,7 +233,7 @@ function homePage() {
 
 // ========== Detail ==========
 function detailPage() {
-  const a = getActivities().find(x => x.id === state.data);
+  const a = state.activities.find(x => x.id === state.data);
   const enrolled = getMyEnrolled();
   if (!a) return homePage();
   const e = enrolled.includes(a.id);
@@ -155,10 +253,9 @@ function detailPage() {
 function myPage() {
   const u = getCurrentUser();
   const enrolled = getMyEnrolled();
-  const acts = getActivities().filter(a => enrolled.includes(a.id));
-  const apps = getApps().filter(a => a.userId === (u.id || u.name));
+  const acts = state.activities.filter(a => enrolled.includes(a.id));
+  const apps = state.apps.filter(a => a.userid === (u.id || u.name));
   let html = `<div class="page-title">📋 我的记录</div><div style="padding:8px 16px 0;font-size:14px;color:var(--text-secondary)">查看所有参与记录</div>`;
-  // Filter tabs
   html += `<div class="filter-tabs">${['all','pending','approved','done'].map(f => 
     `<span class="filter-tab ${state.filter===f?'active':''}" onclick="setMyFilter('${f}')">${({all:'全部',pending:'待确认',approved:'已通过',done:'已完成'})[f]}</span>`
   ).join('')}</div>`;
@@ -170,7 +267,7 @@ function myPage() {
   if (!filtered.length) { html += `<div class="empty"><div class="icon">📭</div><p>暂无记录</p></div>`; }
   else {
     filtered.forEach(a => {
-      const app = apps.find(x => x.taskId === a.id);
+      const app = apps.find(x => String(x.taskid) === String(a.id));
       const status = app ? app.status : '已完成';
       html += `<div class="card" onclick="navigate('detail',${a.id})">
         <div class="card-title">${a.title}</div>
@@ -206,10 +303,10 @@ function profilePage() {
 
 // ========== Admin Pages ==========
 function adminPage() {
-  const acts = getActivities();
-  const users = getUsers();
-  const apps = getApps();
-  const pending = apps.filter(a => a.status === '待审核').length;
+  const acts = state.activities;
+  const users = state.users;
+  const apps = state.apps;
+  const pending = apps.filter(a => String(a.status) === '待审核').length;
   return `<div class="page-title">🔐 管理后台</div>
     <div class="stats-row">
       <div class="stat-card" onclick="navigate('publish')"><div class="stat-icon">📝</div><div>发布活动</div></div>
@@ -223,7 +320,7 @@ function adminPage() {
 }
 
 function adminTasks() {
-  const acts = getActivities();
+  const acts = state.activities;
   let html = `<div class="page-title">📋 活动管理</div>
     <div style="padding:8px 16px 0"><span style="cursor:pointer;color:var(--primary)" onclick="navigate('admin')">← 返回</span></div>`;
   if (!acts.length) { html += `<div class="empty"><div class="icon">📭</div><p>暂无活动</p></div>`; }
@@ -242,9 +339,8 @@ function adminTasks() {
 }
 
 function adminApps() {
-  const apps = getApps();
-  const acts = getActivities();
-  const users = getUsers();
+  const apps = state.apps;
+  const acts = state.activities;
   let html = `<div class="page-title">👥 参与审核 (${apps.filter(a=>a.status==='待审核').length})</div>
     <div style="padding:8px 16px 0"><span style="cursor:pointer;color:var(--primary)" onclick="navigate('admin')">← 返回</span></div>
     <div class="filter-tabs" style="padding:8px 16px">
@@ -254,21 +350,21 @@ function adminApps() {
     </div>`;
   
   let filtered = apps;
-  if (state.filter === 'pending') filtered = apps.filter(a => a.status === '待审核');
-  else if (state.filter === 'salary') filtered = apps.filter(a => a.status === '已完成' && !a.salaryConfirmed);
+  if (state.filter === 'pending') filtered = apps.filter(a => String(a.status) === '待审核');
+  else if (state.filter === 'salary') filtered = apps.filter(a => String(a.status) === '已完成' && !a.salaryconfirmed);
   
   if (!filtered.length) { html += `<div class="empty"><div class="icon">📭</div><p>暂无记录</p></div>`; }
   else {
     filtered.forEach(a => {
-      const task = acts.find(t => t.id === a.taskId);
+      const task = acts.find(t => t.id === a.taskid);
       html += `<div class="card">
-        <div class="card-title">${a.userName} → ${a.taskTitle}</div>
-        <div class="card-meta">状态：${a.status} · 📅 ${(a.appliedAt||'').slice(0,10)}</div>
+        <div class="card-title">${a.username} → ${a.tasktitle}</div>
+        <div class="card-meta">状态：${a.status} · 📅 ${(a.appliedat||'').slice(0,10)}</div>
         <div class="card-footer">
-          ${a.status === '待审核' ? 
+          ${String(a.status) === '待审核' ? 
             `<span><button class="btn-small" onclick="approveApp(${a.id})">✅ 通过</button>
             <button class="btn-small btn-danger" onclick="rejectApp(${a.id})">❌ 拒绝</button></span>` :
-            a.status === '已完成' && !a.salaryConfirmed ?
+            String(a.status) === '已完成' && !a.salaryconfirmed ?
             `<button class="btn-small" onclick="completeSalary(${a.id})">💰 结算积分</button>` :
             `<span class="tag">${a.status}</span>`}
         </div>
@@ -279,14 +375,14 @@ function adminApps() {
 }
 
 function adminUsers() {
-  const users = getUsers();
-  const apps = getApps();
+  const users = state.users;
+  const apps = state.apps;
   let html = `<div class="page-title">👤 用户管理</div>
     <div style="padding:8px 16px 0"><span style="cursor:pointer;color:var(--primary)" onclick="navigate('admin')">← 返回</span></div>`;
   if (!users.length) { html += `<div class="empty"><div class="icon">👤</div><p>暂无用户</p></div>`; }
   else {
     users.forEach(u => {
-      const cnt = apps.filter(a => a.userId === u.name && a.status === '已完成').length;
+      const cnt = apps.filter(a => a.userid === u.name && String(a.status) === '已完成').length;
       html += `<div class="card"><div class="card-title">${u.name}</div>
         <div class="card-meta">积分 ${u.points||0} · 完成 ${u.completed||cnt} 次 · 加入 ${(u.joined||'').slice(0,10)}</div></div>`;
     });
@@ -328,22 +424,36 @@ function tabBar() {
 }
 
 // ========== Actions ==========
-function enroll(id) {
+async function enroll(id) {
   const u = getCurrentUser(); if (!u) return;
   let enrolled = getMyEnrolled();
   if (enrolled.includes(id)) return;
   enrolled.push(id); saveMyEnrolled(enrolled);
-  const acts = getActivities(); const idx = acts.findIndex(a => a.id === id);
-  if (idx > -1) { acts[idx].enrolled = (acts[idx].enrolled||0) + 1; saveActivities(acts); }
-  const apps = getApps();
-  apps.push({ id: Date.now(), taskId: id, userId: u.id || u.name, userName: u.name, taskTitle: acts[idx]?.title, taskPay: acts[idx]?.points||0, status: '待审核', appliedAt: new Date().toISOString() });
-  save(DB.APPS_KEY, apps);
-  state.user.points = (state.user.points||0) + (acts[idx]?.points||50);
-  save(DB.USER_KEY, state.user);
+  
+  const acts = state.activities; const idx = acts.findIndex(a => a.id === id);
+  if (idx > -1) {
+    const newEnrolled = (acts[idx].enrolled||0) + 1;
+    await sbPut('activities', { id: 'eq.' + id }, { enrolled: newEnrolled });
+  }
+  
+  const task = acts.find(a => a.id === id);
+  await sbPost('apps', {
+    id: Date.now(),
+    taskId: id,
+    userId: u.id || u.name,
+    userName: u.name,
+    taskTitle: task?.title || '',
+    taskPay: task?.points||0,
+    status: '待审核',
+    appliedAt: new Date().toISOString()
+  });
+  
+  state.user.points = (state.user.points||0) + (task?.points||50);
+  saveUserToLocal(state.user);
   render();
 }
 
-function doPublish() {
+async function doPublish() {
   const title = document.getElementById('pubTitle')?.value?.trim();
   const location = document.getElementById('pubLocation')?.value?.trim();
   const date = document.getElementById('pubDate')?.value;
@@ -352,47 +462,57 @@ function doPublish() {
   const points = parseInt(document.getElementById('pubPoints')?.value) || 50;
   const content = document.getElementById('pubContent')?.value?.trim();
   if (!title || !location || !date || !content) { document.getElementById('pubError').textContent = '请填写必填项'; return; }
-  const acts = getActivities();
-  const maxId = acts.reduce((m, a) => Math.max(m, a.id), 0);
+  const acts = state.activities;
+  const maxId = acts.reduce((m, a) => Math.max(m, a.id || 0), 0);
   const u = getCurrentUser();
-  acts.push({ id: maxId+1, title, location, content, points, people, enrolled: 0, date, time: time||'全天', status: 'active', publisher: u.name, creator: true });
-  saveActivities(acts);
+  await sbPost('activities', {
+    id: maxId + 1,
+    title, location, content, points, people, enrolled: 0, date,
+    time: time || '全天',
+    status: 'active',
+    publisher: u.name,
+    creator: true
+  });
   navigate('admin_tasks');
 }
 
-function endActivity(id) {
+async function endActivity(id) {
   if (!confirm('确定结束该活动？')) return;
-  const acts = getActivities(); const a = acts.find(x => x.id === id);
-  if (a) { a.status = 'ended'; saveActivities(acts); render(); }
-}
-
-function delActivity(id) {
-  if (!confirm('确定删除该活动？')) return;
-  saveActivities(getActivities().filter(x => x.id !== id));
+  await sbPut('activities', { id: 'eq.' + id }, { status: 'ended' });
   render();
 }
 
-function approveApp(id) {
-  const apps = getApps(); const a = apps.find(x => x.id === id);
-  if (a) { a.status = '已通过'; save(DB.APPS_KEY, apps); render(); }
+async function delActivity(id) {
+  if (!confirm('确定删除该活动？')) return;
+  await sbDelete('activities', { id: 'eq.' + id });
+  render();
 }
 
-function rejectApp(id) {
+async function approveApp(id) {
+  await sbPut('apps', { id: 'eq.' + id }, { status: '已通过' });
+  render();
+}
+
+async function rejectApp(id) {
   const reason = prompt('拒绝理由：') || '未通过审核';
-  const apps = getApps(); const a = apps.find(x => x.id === id);
-  if (a) { a.status = '已拒绝'; a.rejectReason = reason; save(DB.APPS_KEY, apps); render(); }
+  await sbPut('apps', { id: 'eq.' + id }, { status: '已拒绝', rejectReason: reason });
+  render();
 }
 
-function completeSalary(id) {
+async function completeSalary(id) {
   if (!confirm('确认结算积分？')) return;
-  const apps = getApps(); const a = apps.find(x => x.id === id);
-  if (!a) return;
-  a.status = '已完成'; a.salaryConfirmed = true;
-  save(DB.APPS_KEY, apps);
-  // Update user points
-  const users = getUsers(); const u = users.find(x => x.name === a.userName);
-  if (u) { u.points = (u.points||0) + (a.taskPay||0); u.completed = (u.completed||0) + 1; save(DB.USERS_KEY, users); }
-  const cu = getCurrentUser(); if (cu.name === a.userName) { cu.points = (cu.points||0) + (a.taskPay||0); save(DB.USER_KEY, cu); }
+  await sbPut('apps', { id: 'eq.' + id }, { status: '已完成', salaryConfirmed: true });
+  const a = state.apps.find(x => x.id === id);
+  if (a) {
+    let users = await sbGet('users', { name: 'eq.' + a.username });
+    if (users[0]) {
+      const u = users[0];
+      await sbPut('users', { name: 'eq.' + a.username }, {
+        points: (u.points||0) + (a.taskpay||0),
+        completed: (u.completed||0) + 1
+      });
+    }
+  }
   render();
 }
 
@@ -403,17 +523,16 @@ function setAppFilter(f) { state.filter = f; render(); }
 function bindEvents() {
   const loginBtn = document.getElementById('loginBtn');
   if (loginBtn) {
-    loginBtn.addEventListener('click', () => {
+    loginBtn.addEventListener('click', async () => {
       const name = document.getElementById('loginName').value.trim();
       const isAdmin = document.getElementById('adminPwdGroup').style.display === 'block';
       const pwd = document.getElementById('loginPwd')?.value || '';
-      const err = login(name, isAdmin, pwd);
+      const err = await login(name, isAdmin, pwd);
       if (err) document.getElementById('loginError').textContent = err;
     });
     document.getElementById('loginName')?.addEventListener('input', () => {
       const v = document.getElementById('loginName').value.trim();
-      const admin = load(DB.ADMIN_KEY);
-      document.getElementById('adminPwdGroup').style.display = (v === admin.phone) ? 'block' : 'none';
+      document.getElementById('adminPwdGroup').style.display = (v === '13800000000') ? 'block' : 'none';
     });
     document.getElementById('adminToggle')?.addEventListener('click', () => {
       const g = document.getElementById('adminPwdGroup');
@@ -441,5 +560,4 @@ style.textContent = `
 document.head.appendChild(style);
 
 // ========== Start ==========
-init();
-render();
+init().then(() => render());
