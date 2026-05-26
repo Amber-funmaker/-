@@ -426,6 +426,9 @@ function tabBar() {
 // ========== Actions ==========
 async function enroll(id) {
   const u = getCurrentUser(); if (!u) return;
+  // 查云端是否已报名
+  const existingApps = await sbGet('apps', { taskid: 'eq.' + id, userid: 'eq.' + String(u.id || u.name) });
+  if (existingApps.length > 0) { alert('你已经报名过该活动了'); return; }
   let enrolled = getMyEnrolled();
   if (enrolled.includes(id)) return;
   enrolled.push(id); saveMyEnrolled(enrolled);
