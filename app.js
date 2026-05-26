@@ -438,14 +438,13 @@ async function enroll(id) {
   
   const task = acts.find(a => a.id === id);
   await sbPost('apps', {
-    id: Date.now(),
-    taskId: id,
-    userId: u.id || u.name,
-    userName: u.name,
-    taskTitle: task?.title || '',
-    taskPay: task?.points||0,
+    taskid: id,
+    userid: String(u.id || u.name),
+    username: u.name,
+    tasktitle: task?.title || '',
+    taskpay: task?.points || 0,
     status: '待审核',
-    appliedAt: new Date().toISOString()
+    appliedat: new Date().toISOString()
   });
   
   state.user.points = (state.user.points||0) + (task?.points||50);
