@@ -300,7 +300,7 @@ function myPage() {
   const u = getCurrentUser();
   const enrolled = getMyEnrolled();
   const acts = state.activities.filter(a => enrolled.includes(a.id));
-  const apps = state.apps.filter(a => String(a.userid) === String(u.id || u.name));
+  const apps = state.apps.filter(a => a.userid === (u.id || u.name));
 
   let html = `<div class="page-title">📋 我的记录</div>
     <div style="padding:8px 16px 0;font-size:14px;color:var(--text-secondary)">查看所有参与记录</div>`;
