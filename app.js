@@ -613,7 +613,7 @@ function adminApps() {
 
   let filtered = apps;
   if (state.filter === 'pending') filtered = apps.filter(a => String(a.status) === '待审核');
-  else if (state.filter === 'salary') filtered = apps.filter(a => String(a.status) === '已完成');
+  else if (state.filter === 'salary') filtered = apps.filter(a => String(a.status) === '已签到' || String(a.status) === '已完成');
   else if (state.filter === 'paid') filtered = apps.filter(a => String(a.status) === '已发放');
 
   if (!filtered.length) {
@@ -632,10 +632,10 @@ function adminApps() {
               <button class="btn-small" onclick="approveApp(${a.id})">✅ 通过</button>
               <button class="btn-small btn-danger" onclick="rejectApp(${a.id})">❌ 拒绝</button>
             </span>` :
-          (String(a.status) === '已完成') ?
+          (String(a.status) === '已签到' || String(a.status) === '已完成') ?
             `<span>
+              ${String(a.status) === '已签到' ? `<button class="btn-small" onclick="completeActivity(${a.id})">✅ 点完成</button>` : ''}
               <button class="btn-small" style="background:var(--green)" onclick="showSalaryConfirmForm(${a.id})">💰 结算薪资</button>
-              <button class="btn-small" onclick="completeActivity(${a.id})">✅ 点完成</button>
             </span>` :
           (String(a.status) === '待发放') ?
             `<span>
