@@ -1,4 +1,4 @@
-// Amber的活动手札 - 网页版 v4 云端版（Supabase）
+﻿// Amber的活动手札 - 网页版 v4 云端版（Supabase）
 // 活动管理 + 多日期范围 + 签到 + 薪资结算 + 积分兑换
 
 const SUPABASE_URL = 'https://shlpqpscmvdxkxquqibb.supabase.co';
