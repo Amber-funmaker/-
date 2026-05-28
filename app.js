@@ -1103,8 +1103,8 @@ async function doCheckin(appId) {
     checked_in_at: new Date().toISOString()
   };
   await sbPut('apps', { id: 'eq.' + appId }, updates);
-  alert('签到成功！');
-  render();
+  alert('签到成功！等待管理员确认完成。');
+  navigate('my');
 }
 
 async function submitSalaryApply(appId) {
