@@ -599,7 +599,7 @@ function adminApps() {
   const apps = state.apps;
   const acts = state.activities;
   const pendingCount = apps.filter(a => String(a.status) === '待审核').length;
-  const salaryCount = apps.filter(a => String(a.status) === '已完成').length;
+  const salaryCount = apps.filter(a => String(a.status) === '已完成' || String(a.status) === '已签到').length;
 
   let html = `<div class="page-title">👥 审核管理</div>
     <div style="padding:8px 16px 0"><span style="cursor:pointer;color:var(--primary)" onclick="navigate('admin')">← 返回</span></div>
@@ -613,7 +613,7 @@ function adminApps() {
 
   let filtered = apps;
   if (state.filter === 'pending') filtered = apps.filter(a => String(a.status) === '待审核');
-  else if (state.filter === 'salary') filtered = apps.filter(a => String(a.status) === '已完成');
+  else if (state.filter === 'salary') filtered = apps.filter(a => String(a.status) === '已完成' || String(a.status) === '已签到');
   else if (state.filter === 'paid') filtered = apps.filter(a => String(a.status) === '已发放');
 
   if (!filtered.length) {
