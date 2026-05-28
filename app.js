@@ -632,10 +632,15 @@ function adminApps() {
               <button class="btn-small" onclick="approveApp(${a.id})">✅ 通过</button>
               <button class="btn-small btn-danger" onclick="rejectApp(${a.id})">❌ 拒绝</button>
             </span>` :
+          (String(a.status) === '已签到') ?
+            `<span>
+              <button class="btn-small" style="background:var(--green)" onclick="showSalaryConfirmForm(${a.id})">💰 结算薪资</button>
+              <button class="btn-small" onclick="completeActivity(${a.id})">✅ 确认完成</button>
+            </span>` :
           (String(a.status) === '已完成') ?
             `<span>
               <button class="btn-small" style="background:var(--green)" onclick="showSalaryConfirmForm(${a.id})">💰 结算薪资</button>
-              <button class="btn-small" onclick="completeActivity(${a.id})">✅ 点完成</button>
+              <button class="btn-small" onclick="completeActivity(${a.id})">✅ 重新完成</button>
             </span>` :
           (String(a.status) === '待发放') ?
             `<span>
